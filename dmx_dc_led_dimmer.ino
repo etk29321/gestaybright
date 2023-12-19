@@ -3,6 +3,7 @@
 #include <ESPTelnet.h>
 #include <ESPAsyncE131.h>
 #include <EEPROM.h>
+#include <esp_dmx.h>
 #define EEPROM_SIZE 168
 #define TIMER_SPEED 2
 #define UNIVERSE_COUNT 1
@@ -22,7 +23,8 @@ IPAddress WIFI_SUBNET;
 IPAddress WIFI_GW;
 IPAddress WIFI_DNSServer;
 int its_effect_time;
-gestring lights(16, 17); // the led light string is connected to GPIO16 and GPIO17
+//gestring lights(16, 17); // the led light string is connected to GPIO16 and GPIO17
+gestring lights(12, 14);  // the led light string is connected to GPIO16 and GPIO17
 COLOR_MODE_typedef color;
 EFFECT_MODE_typedef mode;
 int raw_color;
@@ -30,6 +32,15 @@ int brightness;
 int factory_reset_called = 0;
 int boot_complete = 0;
 hw_timer_t *effect_timer;
+
+//local DMX settings
+#define DMXtx 17
+#define DMXrx 16
+#define DMXrts 21
+#define DMXport 1
+byte data[DMX_PACKET_SIZE];
+bool dmxIsConnected = false;
+unsigned long lastUpdate = millis();
 
 
 void IRAM_ATTR isr_reset() {
@@ -307,30 +318,43 @@ void setup() {
 
   server.begin();      // start webserver
   lights.begin(mode);  // intialize PWM lights interface
-  if (mode != DMX) {
-    Serial.println(F("Running local effects..."));
-    Serial.printf("Effect: %i\n", mode);
-    effect_timer = timerBegin(0, TIMER_SPEED, true);
-    timerAttachInterrupt(effect_timer, &runEffectsTimer, true);
-    timerAlarmWrite(effect_timer, 1000000, true);
-    timerAlarmEnable(effect_timer);
-  } else {
-    color = WHITE;
-    raw_color = 0;
-    brightness = 0;
-    if (ISMULTICAST == 0) {
-      if (e131.begin(E131_MULTICAST, UNIVERSE, UNIVERSE_COUNT))  // Listen via Multicast
-        Serial.println(F("Listening for DMX E131 data in multicast..."));
-      else
-        Serial.println(F("*** e131.begin failed ***"));
-    } else {
-      if (e131.begin(E131_UNICAST))  // Listen via Unicast
-        Serial.println(F("Listening for DMX E131 data in unicast..."));
-      else
-        Serial.println(F("*** e131.begin failed ***"));
-    }
-    e131.registerCallback(NULL, (*processDMX));  // register the function to handle DMX packets
+  dmx_config_t config = DMX_CONFIG_DEFAULT;
+
+  switch (mode) {
+    case DMX:
+      dmx_driver_install(DMXport, &config, DMX_INTR_FLAGS_DEFAULT);
+      /* Now set the DMX hardware pins to the pins that we want to use and setup
+          will be complete! */
+      dmx_set_pin(DMXport, DMXtx, DMXrx, DMXrts);
+      Serial.printf("Listening on DMX port.  DMX timeout is %i", DMX_TIMEOUT_TICK);
+      break;
+    case E131:
+      color = WHITE;
+      raw_color = 0;
+      brightness = 0;
+      if (ISMULTICAST == 0) {
+        if (e131.begin(E131_MULTICAST, UNIVERSE, UNIVERSE_COUNT))  // Listen via Multicast
+          Serial.println(F("Listening for DMX E131 data in multicast..."));
+        else
+          Serial.println(F("*** e131.begin failed ***"));
+      } else {
+        if (e131.begin(E131_UNICAST))  // Listen via Unicast
+          Serial.println(F("Listening for DMX E131 data in unicast..."));
+        else
+          Serial.println(F("*** e131.begin failed ***"));
+      }
+      e131.registerCallback(NULL, (*processDMX));  // register the function to handle DMX packets
+      break;
+    default:
+      Serial.println(F("Running local effects..."));
+      Serial.printf("Effect: %i\n", mode);
+      effect_timer = timerBegin(0, TIMER_SPEED, true);
+      timerAttachInterrupt(effect_timer, &runEffectsTimer, true);
+      timerAlarmWrite(effect_timer, 1000000, true);
+      timerAlarmEnable(effect_timer);
   }
+
+
   factory_reset_called = 0;
   its_effect_time = 0;
   Serial.println("Startup is complete");
@@ -341,11 +365,61 @@ void setup() {
 void loop() {
   int reboot_requested = 0;
   if (factory_reset_called == 1) factory_reset();
-  if (mode != DMX && its_effect_time == 1) {
+  if (mode != DMX && mode != E131 && its_effect_time == 1) {
     //Serial.println(lights.getBrightness());
     lights.runEffects();
     its_effect_time = 0;
   }
+  if (mode == DMX) {
+    dmx_packet_t packet;
+
+    /* And now we wait! The DMX standard defines the amount of time until DMX
+    officially times out. That amount of time is converted into ESP32 clock
+    ticks using the constant `DMX_TIMEOUT_TICK`. If it takes longer than that
+    amount of time to receive data, this if statement will evaluate to false. */
+    if (dmx_receive(DMXport, &packet, DMX_TIMEOUT_TICK)) {
+      /* If this code gets called, it means we've received DMX data! */
+
+      /* Get the current time since boot in milliseconds so that we can find out
+      how long it has been since we last updated data and printed to the Serial
+      Monitor. */
+      unsigned long now = millis();
+
+      /* We should check to make sure that there weren't any DMX errors. */
+      if (!packet.err) {
+        /* If this is the first DMX data we've received, lets log it! */
+        if (!dmxIsConnected) {
+          Serial.println("DMX is connected!");
+          dmxIsConnected = true;
+        }
+
+        /* Don't forget we need to actually read the DMX data into our buffer so
+        that we can print it out. */
+        dmx_read(DMXport, data, packet.size);
+
+        /* Print the received start code - it's usually 0. */
+        //Serial.printf("Start code is 0x%02X and slot 1 is 0x%02X\n", data[0],data[1]);
+        lastUpdate = now;
+        if(data[START_CHANNEL+1]<128){
+          color=WHITE;
+        } else {
+          color=MULTICOLOR;
+        }
+        lights.setOutput(data[START_CHANNEL], color);
+
+      } else {
+        /* Oops! A DMX error occurred! Don't worry, this can happen when you first
+        connect or disconnect your DMX devices. If you are consistently getting
+        DMX errors, then something may have gone wrong with your code or
+        something is seriously wrong with your DMX transmitter. */
+        Serial.println("A DMX error occurred.");
+      }
+    } else if (dmxIsConnected) {
+      Serial.println("DMX was disconnected.");
+    }
+  }
+
+
 
   //if(effect_mode==0)
   // lights.runffects(); //run the configured on-board effect.  This is active //if DMX/E131 is disabled.
@@ -542,11 +616,16 @@ void loop() {
     }
 
     if (mode == DMX) {
-      client.print("DMX/E131 Controlled<input type=\"radio\" name=\"EFFECT\" value=\"8\" checked=\"checked\"><br>");
+      client.print("DMX Controlled<input type=\"radio\" name=\"EFFECT\" value=\"8\" checked=\"checked\"><br>");
     } else {
-      client.print("DMX/E131 Controlled<input type=\"radio\" name=\"EFFECT\" value=\"8\"><br>");
+      client.print("DMX Controlled<input type=\"radio\" name=\"EFFECT\" value=\"8\"><br>");
     }
 
+    if (mode == E131) {
+      client.print("E131 Controlled<input type=\"radio\" name=\"EFFECT\" value=\"9\" checked=\"checked\"><br>");
+    } else {
+      client.print("E131 Controlled<input type=\"radio\" name=\"EFFECT\" value=\"9\"><br>");
+    }
 
 
 

@@ -22,7 +22,8 @@ typedef enum
     WHITE_FLASHING = 5,
     MULTI_FLASHING = 6,
     CHANGE_FLASHING = 7,
-    DMX = 8
+    DMX = 8,
+    E131 = 9
 } EFFECT_MODE_typedef;
 
 class gestring
