@@ -33,6 +33,15 @@ While it may be possible to power the ESP32 from the stock controller we will ne
 |  GPIO21   | RS485 RE and DE pins         |
 
 
+## Software Dependancies
+
+To build in the Arduino IDE the following additional packages need to be installed:
+
+- [ESP Async E1.31](https://github.com/forkineye/ESPAsyncE131)
+- [esp_dmx](https://github.com/someweisguy/esp_dmx)
+
+All packages are availalbe within the IDE for installation.
+
 ## Operation
 
 ### Intialziation and Reset
