@@ -33,4 +33,33 @@ While it may be possible to power the ESP32 from the stock controller we will ne
 |  GPIO21   | RS485 RE and DE pins         |
 
 
+## Operation
+
+### Intialziation and Reset
+
+After flashing a new ESP32 it will be nesseary to 'factory reset' the firmware so that the default configuration is written to EEPROM.  This reset process can also be used if you have forgotten the wifi SSID the board is configured to connect to or need to reset it.  The default conifguration of the board is to put the wifi in AP mode with a SSID of GE-DMX-<last 4 digits of MAC address>.  The default wifi password is 'dmx'.
+
+| Parameter | Value                  |
+|-----------|------------------------|
+| Wifi Mode | AP                     |
+| Wifi SSID | GE-DMX-<last 4 of MAC> |
+| Wifi Key  | dmx                    |
+| Static IP | true                   |
+| IP Address | 192.168.2.1           |
+| Effect Mode | Built-in Slo-Glo effect |
+
+The board can be reset to the default configuration by holding down the boot button for 5 seconds.  The board will flash the blue multifunction onboard led to indicate a successful reset.
+
+### Multifunction LED
+
+The onboard LED is used to provide status.  In normal operation it shows the connected status of the wifi.  Blinking light indicates it is attempting to connect.  Steady light indicates wifi is connected.  No light indicates wifi connection failed.  The light is also used to provide feedback during the factory reset process as described above.
+
+### Configuration
+
+The conifguration of the board is done via a web interface.  Navigate in your web browser to the IP of the board to access the site (e.g. if the default configuration this would be [http://192.168.2.1](http://192.168.2.1).  Clicking the update button will save the configuration and restart with the new config applied.
+
+The lights uses 2 DMX channels.  Channel 1 is brightness and channel 2 controls color (0-127 = White, 128-255 = Multicolor).
+
+![config_page](https://github.com/etk29321/gestaybright/assets/13752726/40373b76-97f7-43ff-b974-4e80643f86ac)
+
 
