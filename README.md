@@ -12,11 +12,16 @@ Lowes has some [GE branded LED multifunction string lights](https://www.lowes.co
 
 ### Controller Modifications
 
-The supplied controller gives us most of the hardware we need to drive the lights.  We do have to remove the onboard chip and wire in the ESP32 to run our own code though.  The chip to remove is circled in the picture below.  You can try desoldering it but I had good luck just cutting the pins with a utility knife.  Once the chip is removed we need to attach wires to the board that will go to the GPIO pins on the ESP32.  Tracing the orginal control chip outputs, the easiest place to tap in is next to the two resisters pointed to in the picture.  A 3.3V PWM single applied at these points will activate the transistors and produce a propotional output voltage of 0-28V on one of the output pins while pulling the opposite pin to ground.
+The supplied controller gives us most of the hardware we need to drive the lights.  We do have to remove the onboard chip and wire in the ESP32 to run our own code though.  There are two versions of the controller but the procedure is largely the same.  Both run at 5V but in practice the older style didn't have great voltage control and seemed to peak at ~3V when running under load.  The newer version does better and will get to 5V.  A level shifter to shift the ESP32's 3.3V to 5V would probably result in slightly brighter lights on the new boards but due to the old board's voltage control issues I notice no difference in brightness. 
 
-Additionally, I soldered the buck converter to the 28V input terminals of the board.  This was a convient place to connect.
+The chip to remove is circled in the picture below.  You can try desoldering it but I had good luck just cutting the pins with a utility knife.  Once the chip is removed we need to attach wires to the board that will go to the GPIO pins on the ESP32.  Tracing the orginal control chip outputs, the easiest place to tap in is next to the two resisters pointed to in the picture.  A 3.3V PWM single applied at these points will activate the transistors and produce a propotional output voltage of 0-28V on one of the output pins while pulling the opposite pin to ground.
+
+Additionally, I soldered the buck converter to the 28V input terminals of the board.  This was a convient place to connect.  I have not been successful running the ESP off the 5V lines on the controller, but it might be possble.  I suspect they may not supply sufficent current though.
 
 ![ge_controller_wiring](https://github.com/etk29321/gestaybright/assets/13752726/6286fbbd-0df3-49bf-b58c-00c41cf57e0f)
+
+![new_style_controller](https://github.com/etk29321/gestaybright/assets/13752726/8e85f11f-542f-434a-8808-332e6ef15694)
+
 
 ### Buck converter
 
